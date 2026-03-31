@@ -49,6 +49,10 @@ An advanced network project exploring innovative approaches to network optimizat
 ### Final Project Artifacts
 Comprehensive capstone work integrating concepts from all labs and assignments.
 
+# Certifications
+
+- **Cisco Networking Academy**: Getting Started with Cisco Packet Tracer (Completed on 28 Nov 2025)
+
 ## 📞 Contact & More
 
 For more information about these projects, please feel free to reach out or check individual project directories for detailed documentation.
