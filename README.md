@@ -53,10 +53,3 @@ Comprehensive capstone work integrating concepts from all labs and assignments.
 ![Image alt](https://github.com/BRHansol/Personal-Portfolio/blob/3280c8d627054d0e55a810f672cdbfcf80d5eab1/certificate/certificate.jpg)
 - **Cisco Networking Academy**: Getting Started with Cisco Packet Tracer (Completed on 28 Nov 2025)
 
-## 📞 Contact & More
-
-For more information about these projects, please feel free to reach out or check individual project directories for detailed documentation.
-
----
-
-**Last Updated**: March 2026
