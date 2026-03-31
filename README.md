@@ -54,5 +54,5 @@ Comprehensive capstone work integrating concepts from all labs and assignments.
 ![Image alt](https://github.com/BRHansol/Personal-Portfolio/blob/3280c8d627054d0e55a810f672cdbfcf80d5eab1/certificate/certificate.jpg)
 
 ### CCNA-_Introduction_to_Networks_certificate
-![Image alt]()
+![Image alt](https://github.com/BRHansol/Personal-Portfolio/blob/1735269148ef22c1f34628dba77d55fa486322ba/certificate/CCNA-_Introduction_to_Networks_certificate_boonyapaween-r-kkumail-com.jpg)
 
