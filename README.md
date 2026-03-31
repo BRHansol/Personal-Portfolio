@@ -1,6 +1,7 @@
 # Personal Portfolio - Network Engineering & Development
 
-Welcome to my personal portfolio repository! This collection showcases my academic projects, labs, and professional work in networking, software development, and advanced network technologies.
+Welcome to my personal portfolio repository! My name is Boonyapaween Ruangphaisarn, My Student ID is 673380588-4
+This collection showcases my academic projects, labs, and professional work in networking, software development, and advanced network technologies.
 
 ## 📋 Repository Structure
 
