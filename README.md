@@ -50,7 +50,7 @@ An advanced network project exploring innovative approaches to network optimizat
 Comprehensive capstone work integrating concepts from all labs and assignments.
 
 # Certifications
-![Cisco Networking Academy Certificate](./certificates/cisco-packet-tracer.png)
+![Image alt](https://github.com/BRHansol/Personal-Portfolio/blob/3280c8d627054d0e55a810f672cdbfcf80d5eab1/certificate/certificate.jpg)
 - **Cisco Networking Academy**: Getting Started with Cisco Packet Tracer (Completed on 28 Nov 2025)
 
 ## 📞 Contact & More
