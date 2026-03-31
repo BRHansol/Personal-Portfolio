@@ -14,7 +14,7 @@ This collection showcases my academic projects, labs, and professional work in n
 ### Final Project
 - **Final Project Artifacts**: Capstone project deliverables demonstrating comprehensive knowledge integration
 
-### Special Projects
+### My Project
 - **Magnetic Resonance Network (MRN)**: Advanced network architecture project featuring innovative resonance-based technologies
 
 ## 🎯 Overview
