@@ -1,0 +1,390 @@
+version: "3.9"
+
+# ── Lab 7: Resilient Internet + Secure Microservices (Full Enterprise) ────────
+# Networks:
+#   internet_net   10.255.0.0/24   R1 + R3 → Internet
+#   isp1_net       10.1.1.0/30     R1 WAN uplink
+#   isp2_net       10.2.2.0/30     R3 WAN uplink
+#   hsrp_net       10.0.0.0/29     R1 + R3 HSRP peering + VPN
+#   isp_wan        100.10.10.0/30  R1/R3 → R2 routed WAN
+#   dmz_net        172.16.0.0/24   Load Balancer + exposed services
+#   lan_a_net      192.168.10.0/24 ServerA + ClientA
+#   lan_b_net      192.168.20.0/24 ServerB + ClientB
+#   data_net       192.168.30.0/24 Redis + PostgreSQL
+#   logging_net    192.168.40.0/24 Loki + Grafana + Prometheus
+
+networks:
+  internet_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.255.0.0/24
+
+  hsrp_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.0.0.0/29
+
+  isp_wan:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.10.10.0/30
+
+  dmz_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.16.0.0/24
+
+  lan_a_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.10.0/24
+
+  lan_b_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.20.0/24
+
+  data_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.30.0/24
+
+  logging_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.40.0/24
+
+services:
+
+  # ── R1: Primary Edge Router (HSRP Active, ISP 1) ────────────────────────────
+  R1:
+    image: frrouting/frr:latest
+    container_name: R1
+    hostname: R1
+    privileged: true
+    cap_add: [NET_ADMIN, SYS_ADMIN]
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.forwarding=1
+    networks:
+      internet_net:
+        ipv4_address: 10.255.0.2
+      hsrp_net:
+        ipv4_address: 10.0.0.1
+      isp_wan:
+        ipv4_address: 100.10.10.1
+      lan_a_net:
+        ipv4_address: 192.168.10.1
+      dmz_net:
+        ipv4_address: 172.16.0.1
+    volumes:
+      - ./config/r1/frr.conf:/etc/frr/frr.conf:ro
+      - ./config/r1/daemons:/etc/frr/daemons:ro
+      - ./scripts/r1_setup.sh:/startup/setup.sh:ro
+    entrypoint: >
+      sh -c "
+        /usr/lib/frr/frrinit.sh start &&
+        sleep 3 &&
+        sh /startup/setup.sh &&
+        tail -f /dev/null
+      "
+
+  # ── R3: Standby Edge Router (HSRP Standby, ISP 2) ───────────────────────────
+  R3:
+    image: frrouting/frr:latest
+    container_name: R3
+    hostname: R3
+    privileged: true
+    cap_add: [NET_ADMIN, SYS_ADMIN]
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.forwarding=1
+    networks:
+      internet_net:
+        ipv4_address: 10.255.0.3
+      hsrp_net:
+        ipv4_address: 10.0.0.2
+      isp_wan:
+        ipv4_address: 100.10.10.3
+      dmz_net:
+        ipv4_address: 172.16.0.2
+    volumes:
+      - ./config/r3/frr.conf:/etc/frr/frr.conf:ro
+      - ./config/r3/daemons:/etc/frr/daemons:ro
+      - ./scripts/r3_setup.sh:/startup/setup.sh:ro
+    entrypoint: >
+      sh -c "
+        /usr/lib/frr/frrinit.sh start &&
+        sleep 3 &&
+        sh /startup/setup.sh &&
+        tail -f /dev/null
+      "
+    depends_on:
+      - R1
+
+  # ── R2: Branch Router ────────────────────────────────────────────────────────
+  R2:
+    image: frrouting/frr:latest
+    container_name: R2
+    hostname: R2
+    privileged: true
+    cap_add: [NET_ADMIN, SYS_ADMIN]
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.forwarding=1
+    networks:
+      isp_wan:
+        ipv4_address: 100.10.10.2
+      lan_b_net:
+        ipv4_address: 192.168.20.1
+    volumes:
+      - ./config/r2/frr.conf:/etc/frr/frr.conf:ro
+      - ./config/r2/daemons:/etc/frr/daemons:ro
+    entrypoint: >
+      sh -c "
+        /usr/lib/frr/frrinit.sh start &&
+        tail -f /dev/null
+      "
+    depends_on:
+      - R1
+      - R3
+
+  # ── Load Balancer (DMZ) ──────────────────────────────────────────────────────
+  LoadBalancer:
+    image: nginx:alpine
+    container_name: LoadBalancer
+    hostname: loadbalancer
+    networks:
+      dmz_net:
+        ipv4_address: 172.16.0.10
+      lan_a_net:
+        ipv4_address: 192.168.10.5
+    volumes:
+      - ./config/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - R1
+      - R3
+
+  # ── ServerA: Microservices on LAN A ─────────────────────────────────────────
+  ServerA:
+    image: python:3.10-alpine
+    container_name: ServerA
+    hostname: ServerA
+    networks:
+      lan_a_net:
+        ipv4_address: 192.168.10.10
+      data_net:
+        ipv4_address: 192.168.30.10
+      logging_net:
+        ipv4_address: 192.168.40.10
+    environment:
+      - UPLOAD_PORT=8000
+      - PROCESSING_PORT=8001
+      - AI_PORT=8002
+      - GATEWAY_PORT=9000
+      - UPLOAD_SERVICE_URL=http://localhost:8000
+      - PROCESSING_SERVICE_URL=http://localhost:8001
+      - AI_SERVICE_URL=http://localhost:8002
+      - REDIS_URL=redis://192.168.30.20:6379/0
+      - DATABASE_URL=postgresql://lab7:lab7pass@192.168.30.30:5432/lab7db
+      - LOKI_URL=http://192.168.40.20:3100
+      - ALLOWED_ORIGINS=*
+      - FRR_ENABLED=false
+    volumes:
+      - ./automation:/automation
+    working_dir: /automation
+    command: >
+      sh -c "
+        pip install fastapi uvicorn httpx aiofiles pydantic python-dotenv
+                    slowapi redis asyncpg sqlalchemy aiohttp --quiet &&
+        python start_services.py
+      "
+    depends_on:
+      - Redis
+      - PostgreSQL
+      - LoadBalancer
+
+  # ── ServerB: Microservices on LAN B ─────────────────────────────────────────
+  ServerB:
+    image: python:3.10-alpine
+    container_name: ServerB
+    hostname: ServerB
+    networks:
+      lan_b_net:
+        ipv4_address: 192.168.20.10
+      data_net:
+        ipv4_address: 192.168.30.11
+      logging_net:
+        ipv4_address: 192.168.40.11
+    environment:
+      - UPLOAD_PORT=8000
+      - PROCESSING_PORT=8001
+      - AI_PORT=8002
+      - GATEWAY_PORT=9000
+      - UPLOAD_SERVICE_URL=http://localhost:8000
+      - PROCESSING_SERVICE_URL=http://localhost:8001
+      - AI_SERVICE_URL=http://localhost:8002
+      - REDIS_URL=redis://192.168.30.20:6379/0
+      - DATABASE_URL=postgresql://lab7:lab7pass@192.168.30.30:5432/lab7db
+      - LOKI_URL=http://192.168.40.20:3100
+      - ALLOWED_ORIGINS=*
+      - FRR_ENABLED=false
+    volumes:
+      - ./automation:/automation
+    working_dir: /automation
+    command: >
+      sh -c "
+        pip install fastapi uvicorn httpx aiofiles pydantic python-dotenv
+                    slowapi redis asyncpg sqlalchemy aiohttp --quiet &&
+        python start_services.py
+      "
+    depends_on:
+      - Redis
+      - PostgreSQL
+      - LoadBalancer
+
+  # ── Redis: Cache + Sessions ──────────────────────────────────────────────────
+  Redis:
+    image: redis:7-alpine
+    container_name: Redis
+    hostname: redis
+    networks:
+      data_net:
+        ipv4_address: 192.168.30.20
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+
+  # ── PostgreSQL: Persistent Storage ──────────────────────────────────────────
+  PostgreSQL:
+    image: postgres:15-alpine
+    container_name: PostgreSQL
+    hostname: postgres
+    networks:
+      data_net:
+        ipv4_address: 192.168.30.30
+    environment:
+      - POSTGRES_USER=lab7
+      - POSTGRES_PASSWORD=lab7pass
+      - POSTGRES_DB=lab7db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./config/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  # ── Loki: Log aggregation ────────────────────────────────────────────────────
+  Loki:
+    image: grafana/loki:2.9.0
+    container_name: Loki
+    hostname: loki
+    networks:
+      logging_net:
+        ipv4_address: 192.168.40.20
+    volumes:
+      - ./config/loki/loki.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+
+  # ── Promtail: Log shipper ────────────────────────────────────────────────────
+  Promtail:
+    image: grafana/promtail:2.9.0
+    container_name: Promtail
+    hostname: promtail
+    networks:
+      logging_net:
+        ipv4_address: 192.168.40.21
+    volumes:
+      - ./config/promtail/promtail.yml:/etc/promtail/config.yml:ro
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    command: -config.file=/etc/promtail/config.yml
+
+  # ── Prometheus: Metrics ──────────────────────────────────────────────────────
+  Prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: Prometheus
+    hostname: prometheus
+    networks:
+      logging_net:
+        ipv4_address: 192.168.40.22
+      lan_a_net:
+        ipv4_address: 192.168.10.22
+      lan_b_net:
+        ipv4_address: 192.168.20.22
+    volumes:
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+
+  # ── Grafana: Dashboards ──────────────────────────────────────────────────────
+  Grafana:
+    image: grafana/grafana:10.2.0
+    container_name: Grafana
+    hostname: grafana
+    networks:
+      logging_net:
+        ipv4_address: 192.168.40.30
+      dmz_net:
+        ipv4_address: 172.16.0.30
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=lab7admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./config/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./config/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - Loki
+      - Prometheus
+
+  # ── Alertmanager ─────────────────────────────────────────────────────────────
+  Alertmanager:
+    image: prom/alertmanager:v0.26.0
+    container_name: Alertmanager
+    hostname: alertmanager
+    networks:
+      logging_net:
+        ipv4_address: 192.168.40.40
+    volumes:
+      - ./config/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+
+  # ── Clients ───────────────────────────────────────────────────────────────────
+  ClientA:
+    image: python:3.10-alpine
+    container_name: ClientA
+    hostname: ClientA
+    networks:
+      lan_a_net:
+        ipv4_address: 192.168.10.50
+    command: tail -f /dev/null
+    depends_on: [ServerA]
+
+  ClientB:
+    image: python:3.10-alpine
+    container_name: ClientB
+    hostname: ClientB
+    networks:
+      lan_b_net:
+        ipv4_address: 192.168.20.50
+    command: tail -f /dev/null
+    depends_on: [ServerB]
+
+volumes:
+  redis_data:
+  postgres_data:
+  loki_data:
+  prometheus_data:
+  grafana_data:

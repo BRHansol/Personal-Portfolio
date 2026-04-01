@@ -1,0 +1,65 @@
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+  external_labels:
+    lab: lab7
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: [192.168.40.40:9093]
+
+scrape_configs:
+
+  # ── Prometheus itself ─────────────────────────────────────────
+  - job_name: prometheus
+    static_configs:
+      - targets: [localhost:9090]
+
+  # ── FastAPI microservices (ServerA) ──────────────────────────
+  - job_name: microservices_a
+    static_configs:
+      - targets:
+          - 192.168.10.10:8000   # upload
+          - 192.168.10.10:8001   # processing
+          - 192.168.10.10:8002   # ai
+          - 192.168.10.10:9000   # gateway
+    metrics_path: /metrics
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+      - target_label: site
+        replacement: LAN-A
+
+  # ── FastAPI microservices (ServerB) ──────────────────────────
+  - job_name: microservices_b
+    static_configs:
+      - targets:
+          - 192.168.20.10:8000
+          - 192.168.20.10:8001
+          - 192.168.20.10:8002
+          - 192.168.20.10:9000
+    metrics_path: /metrics
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+      - target_label: site
+        replacement: LAN-B
+
+  # ── Redis ─────────────────────────────────────────────────────
+  - job_name: redis
+    static_configs:
+      - targets: [192.168.30.20:9121]   # redis_exporter sidecar
+
+  # ── PostgreSQL ────────────────────────────────────────────────
+  - job_name: postgres
+    static_configs:
+      - targets: [192.168.30.30:9187]   # postgres_exporter sidecar
+
+  # ── nginx (load balancer) ─────────────────────────────────────
+  - job_name: nginx
+    static_configs:
+      - targets: [172.16.0.10:9113]     # nginx_prometheus_exporter
