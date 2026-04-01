@@ -9,7 +9,7 @@ This collection showcases my academic projects, labs, and professional work in n
 - **Assignment 1-4**: Core coursework covering fundamental networking concepts and implementation
 
 ### Labs
-- **Lab 1-6**: Hands-on practical exercises in network configuration, protocols, and system design
+- **Lab 1-7**: Hands-on practical exercises in network configuration, protocols, and system design
 
 ### Final Project
 - **Final Project Artifacts**: Capstone project deliverables demonstrating comprehensive knowledge integration
